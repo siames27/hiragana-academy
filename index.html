@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Amarin Hiragana Academy</title>
+    <title>Amarin Hiragana Academy v2</title>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -58,18 +58,22 @@
             border: 1px solid #252e3b;
         }
         .kana-display {
-            font-size: 5rem;
+            font-size: 4.5rem;
             font-weight: bold;
             color: #fff;
             margin: 0;
             text-shadow: 0 0 15px rgba(69, 243, 255, 0.3);
+            min-height: 110px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         .mode-label {
             font-size: 0.8rem;
             text-transform: uppercase;
             letter-spacing: 2px;
             color: #5f758e;
-            margin-top: 10px;
+            margin-top: 15px;
         }
         .options-grid {
             display: grid;
@@ -101,29 +105,32 @@
         </div>
 
         <div class="question-card">
-            <div class="kana-display" id="kanaTarget">あ</div>
-            <div class="mode-label">Romaji Karşılığını Seç</div>
+            <div class="kana-display" id="kanaTarget">-</div>
+            <div class="mode-label" id="modeLabel">-</div>
         </div>
 
-        <div class="options-grid" id="optionsContainer">
-            </div>
+        <div class="options-grid" id="optionsContainer"></div>
     </div>
 
     <script>
-        // Temel Hiragana Veri Seti (Gömülü Kütüphane)
+        // Veri setine 'row' (ses grubu) parametresi ekledim (Yanıltıcı şıklar için)
         const hiraganaData = [
-            { kana: "あ", romaji: "a" }, { kana: "い", romaji: "i" }, { kana: "う", romaji: "u" }, { kana: "え", romaji: "e" }, { kana: "お", romaji: "o" },
-            { kana: "か", romaji: "ka" }, { kana: "き", romaji: "ki" }, { kana: "く", romaji: "ku" }, { kana: "け", romaji: "ke" }, { kana: "こ", romaji: "ko" },
-            { kana: "さ", romaji: "sa" }, { kana: "し", romaji: "shi" }, { kana: "す", romaji: "su" }, { kana: "せ", romaji: "se" }, { kana: "そ", romaji: "so" },
-            { kana: "た", romaji: "ta" }, { kana: "ち", romaji: "chi" }, { kana: "つ", romaji: "tsu" }, { kana: "て", romaji: "te" }, { kana: "と", romaji: "to" }
+            { kana: "あ", romaji: "a", row: "vowel" }, { kana: "い", romaji: "i", row: "vowel" }, { kana: "う", romaji: "u", row: "vowel" }, { kana: "え", romaji: "e", row: "vowel" }, { kana: "お", romaji: "o", row: "vowel" },
+            { kana: "か", romaji: "ka", row: "k" }, { kana: "き", romaji: "ki", row: "k" }, { kana: "く", romaji: "ku", row: "k" }, { kana: "け", romaji: "ke", row: "k" }, { kana: "こ", romaji: "ko", row: "k" },
+            { kana: "さ", romaji: "sa", row: "s" }, { kana: "し", romaji: "shi", row: "s" }, { kana: "す", romaji: "su", row: "s" }, { kana: "せ", romaji: "se", row: "s" }, { kana: "そ", romaji: "so", row: "s" },
+            { kana: "た", romaji: "ta", row: "t" }, { kana: "ち", romaji: "chi", row: "t" }, { kana: "つ", romaji: "tsu", row: "t" }, { kana: "て", romaji: "te", row: "t" }, { kana: "と", romaji: "to", row: "t" }
         ];
 
         let currentQuestion = null;
+        let lastQuestion = null; // Üst üste gelmeyi engellemek için
+        let isKanaToRomaji = true; // Çift yönlü çalışma modu
+        
         let score = parseInt(localStorage.getItem('jp_score')) || 0;
         let streak = parseInt(localStorage.getItem('jp_streak')) || 0;
         let canAnswer = true;
 
         const kanaTarget = document.getElementById('kanaTarget');
+        const modeLabel = document.getElementById('modeLabel');
         const optionsContainer = document.getElementById('optionsContainer');
         const scoreDisplay = document.getElementById('score');
         const streakDisplay = document.getElementById('streak');
@@ -136,57 +143,77 @@
 
         function generateQuestion() {
             canAnswer = true;
-            // Rastgele bir karakter seç
-            currentQuestion = hiraganaData[Math.floor(Math.random() * hiraganaData.length)];
-            kanaTarget.innerText = currentQuestion.kana;
-
-            // Yanlış şıkları ayarla
-            let wrongOptions = hiraganaData
-                .filter(item => item.romaji !== currentQuestion.romaji)
-                .map(item => item.romaji);
             
-            // Yanlış şıklardan rastgele 3 tane seç ve karıştır
-            wrongOptions = wrongOptions.sort(() => 0.5 - Math.random()).slice(0, 3);
-            let allOptions = [...wrongOptions, currentQuestion.romaji].sort(() => 0.5 - Math.random());
+            // 1. DÖNGÜ: Peş peşe aynı harfin gelmesini engelle
+            do {
+                currentQuestion = hiraganaData[Math.floor(Math.random() * hiraganaData.length)];
+            } while (currentQuestion === lastQuestion);
+            lastQuestion = currentQuestion;
 
-            // Arayüze bas
+            // 2. MOD SEÇİMİ: Sorunun yönünü rastgele değiştir (%50 ihtimal)
+            isKanaToRomaji = Math.random() > 0.5;
+
+            if (isKanaToRomaji) {
+                kanaTarget.innerText = currentQuestion.kana;
+                modeLabel.innerText = "Romaji Karşılığını Seç";
+            } else {
+                kanaTarget.innerText = currentQuestion.romaji;
+                modeLabel.innerText = "Hiragana Karşılığını Seç";
+            }
+
+            // 3. AKILLI ÇELDIRICI SEÇİMİ: Öncelikle aynı ses grubundan (row) harfleri çek
+            let smartDistractors = hiraganaData.filter(item => item.row === currentQuestion.row && item !== currentQuestion);
+            
+            // Eğer aynı gruptan yeterli harf yoksa diğer gruplardan rastgele tamamla
+            if (smartDistractors.length < 3) {
+                let leftovers = hiraganaData.filter(item => item.row !== currentQuestion.row);
+                leftovers.sort(() => 0.5 - Math.random());
+                smartDistractors = [...smartDistractors, ...leftovers.slice(0, 3 - smartDistractors.length)];
+            } else {
+                smartDistractors = smartDistractors.sort(() => 0.5 - Math.random()).slice(0, 3);
+            }
+
+            // Doğru ve yanlış cevapları aktif moda göre ayıkla
+            let correctAnswer = isKanaToRomaji ? currentQuestion.romaji : currentQuestion.kana;
+            let wrongAnswers = smartDistractors.map(item => isKanaToRomaji ? item.romaji : item.kana);
+
+            let allOptions = [...wrongAnswers, correctAnswer].sort(() => 0.5 - Math.random());
+
+            // Butonları ekrana bas
             optionsContainer.innerHTML = '';
             allOptions.forEach(opt => {
                 const btn = document.createElement('button');
                 btn.className = 'option-btn';
                 btn.innerText = opt;
-                btn.onclick = () => checkAnswer(btn, opt);
+                btn.onclick = () => checkAnswer(btn, opt, correctAnswer);
                 optionsContainer.appendChild(btn);
             });
         }
 
-        function checkAnswer(selectedBtn, chosenRomaji) {
+        function checkAnswer(selectedBtn, chosenOpt, correctAnswer) {
             if (!canAnswer) return;
             canAnswer = false;
 
             const buttons = optionsContainer.querySelectorAll('.option-btn');
 
-            if (chosenRomaji === currentQuestion.romaji) {
+            if (chosenOpt === correctAnswer) {
                 selectedBtn.classList.add('correct');
                 score++;
                 streak++;
             } else {
                 selectedBtn.classList.add('wrong');
-                streak = 0; // Seri bozuldu
-                // Doğru olanı yeşille göster
+                streak = 0;
                 buttons.forEach(btn => {
-                    if (btn.innerText === currentQuestion.romaji) btn.classList.add('correct');
+                    if (btn.innerText === correctAnswer) btn.classList.add('correct');
                 });
             }
 
-            // Skorları güncelle ve LocalStorage'a yaz
             scoreDisplay.innerText = score;
             streakDisplay.innerText = streak;
             localStorage.setItem('jp_score', score);
             localStorage.setItem('jp_streak', streak);
 
-            // 1 saniye sonra yeni soruya geç
-            setTimeout(generateQuestion, 1000);
+            setTimeout(generateQuestion, 1200);
         }
 
         document.addEventListener('DOMContentLoaded', initQuiz);
